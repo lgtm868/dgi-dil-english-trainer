@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "homepage": "https://USERNAME.github.io/dgi-dil-english-trainer/",
+  "homepage": "https://lgtm868.github.io/dgi-dil-english-trainer/",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -8,7 +8,7 @@ const AUDIO_KEY = `${KEY_PREFIX}:audio-settings`;
 
 export const defaultAudioSettings: AudioSettings = {
   voiceURI: '',
-  rate: 1,
+  rate: 0.95,
   pitch: 1,
   volume: 1,
   repeatCount: 1,

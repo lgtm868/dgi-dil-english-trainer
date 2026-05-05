@@ -12,7 +12,7 @@ export type SpeakResult = {
 
 const fallbackSettings: AudioSettings = {
   voiceURI: '',
-  rate: 1,
+  rate: 0.95,
   pitch: 1,
   volume: 1,
   repeatCount: 1,
@@ -58,24 +58,80 @@ export function hasBritishVoice(voices: SpeechSynthesisVoice[]) {
   return voices.some((voice) => voice.lang.toLowerCase().startsWith('en-gb'));
 }
 
+export function hasNaturalBritishVoice(voices: SpeechSynthesisVoice[]) {
+  return voices.some((voice) => voice.lang.toLowerCase().startsWith('en-gb') && getVoiceNaturalnessScore(voice) >= 1200);
+}
+
+export function getVoiceNaturalnessScore(voice: SpeechSynthesisVoice) {
+  const lang = voice.lang.toLowerCase();
+  const name = `${voice.name} ${voice.voiceURI}`.toLowerCase();
+  let score = 0;
+
+  if (lang === 'en-gb') score += 1000;
+  else if (lang.startsWith('en-gb')) score += 900;
+  else if (lang.startsWith('en')) score += 250;
+
+  if (voice.default) score += 20;
+  if (!voice.localService) score += 80;
+
+  if (/\b(neural|natural|online|premium|enhanced|cloud)\b/.test(name)) score += 220;
+  if (/\b(microsoft|google|apple|siri)\b/.test(name)) score += 80;
+  if (/\b(sonia|libby|george|ryan|abbi|maisie|arthur|martha|daniel|kate|serena)\b/.test(name)) score += 90;
+  if (/\b(female|male)\b/.test(name)) score += 15;
+
+  if (/\b(compact|legacy|classic|standard|basic|default|espeak|festival|flite)\b/.test(name)) score -= 180;
+  if (/\b(us|america|american|australia|australian|india|indian|ireland|irish|south africa)\b/.test(name)) score -= 140;
+
+  return score;
+}
+
+export function selectBestUkVoice(voices: SpeechSynthesisVoice[]) {
+  return [...voices]
+    .filter((voice) => voice.lang.toLowerCase().startsWith('en-gb'))
+    .sort((a, b) => getVoiceNaturalnessScore(b) - getVoiceNaturalnessScore(a))[0];
+}
+
 export function selectVoice(voices: SpeechSynthesisVoice[], voiceURI: string) {
   return (
     voices.find((voice) => voice.voiceURI === voiceURI) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith('en-gb')) ??
-    voices.find((voice) => voice.lang.toLowerCase().startsWith('en')) ??
+    selectBestUkVoice(voices) ??
+    [...voices]
+      .filter((voice) => voice.lang.toLowerCase().startsWith('en'))
+      .sort((a, b) => getVoiceNaturalnessScore(b) - getVoiceNaturalnessScore(a))[0] ??
     voices[0]
   );
 }
 
 export const selectEnglishVoice = selectVoice;
 export const getPreferredEnglishVoice = selectVoice;
+export const getBestUkEnglishVoice = selectBestUkVoice;
+
+export function sortVoicesByPreference(voices: SpeechSynthesisVoice[]) {
+  return [...voices].sort((a, b) => getVoiceNaturalnessScore(b) - getVoiceNaturalnessScore(a));
+}
+
+export function describeVoiceQuality(voice?: SpeechSynthesisVoice) {
+  if (!voice) {
+    return 'No English browser voice is available.';
+  }
+
+  const isUk = voice.lang.toLowerCase().startsWith('en-gb');
+  const score = getVoiceNaturalnessScore(voice);
+  if (isUk && score >= 1200) {
+    return `Using the most natural UK voice available: ${voice.name}.`;
+  }
+  if (isUk) {
+    return `Using UK English voice: ${voice.name}.`;
+  }
+  return `No UK voice is available, so using English fallback: ${voice.name}.`;
+}
 
 export function modeDefaults(mode: ListeningMode) {
   switch (mode) {
     case 'clear':
       return { rate: 0.82, pitch: 1, repeatCount: 1 };
     case 'meeting':
-      return { rate: 1, pitch: 1, repeatCount: 1 };
+      return { rate: 0.95, pitch: 1, repeatCount: 1 };
     case 'stress':
       return { rate: 1.18, pitch: 1, repeatCount: 1 };
     case 'dictation':
@@ -120,9 +176,21 @@ export async function speakText(text: string, settings: AudioSettings, voices: S
   const repeat = Math.max(1, Math.round(settings.repeatCount));
 
   for (let index = 0; index < repeat; index += 1) {
-    await speakOnce(text, settings, voice);
+    await speakOnce(prepareSpeechText(text), settings, voice);
   }
   return true;
+}
+
+export function prepareSpeechText(text: string) {
+  return text
+    .replace(/\bDGI\b/g, 'D G I')
+    .replace(/\bDIL\b/g, 'D I L')
+    .replace(/\bHMRC\b/g, 'H M R C')
+    .replace(/\bUK\b/g, 'U K')
+    .replace(/\bDCF\b/g, 'D C F')
+    .replace(/\bMP3\b/g, 'M P 3')
+    .replace(/tax\/valuation/gi, 'tax and valuation')
+    .replace(/\//g, ' and ');
 }
 
 function normalizeSpeechOptions(options: SpeechOptions): AudioSettings {
